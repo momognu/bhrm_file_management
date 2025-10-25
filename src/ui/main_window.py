@@ -13,7 +13,6 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -21,8 +20,8 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSystemTrayIcon,
-    QTableWidget,
-    QTableWidgetItem,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -46,7 +45,7 @@ class FileManagementApp(QMainWindow):
         self.backup_manager = BackupManager()
         
         # 存储文件信息
-        self.files = []
+        self.files_tree = {}
         self.selected_files = []
         
         # 创建系统托盘图标
@@ -144,14 +143,11 @@ class FileManagementApp(QMainWindow):
         dir_selection_layout.addWidget(self.dir_browse_btn)
         dir_selection_layout.addWidget(self.refresh_btn)
         
-        # 创建文件表格
-        self.file_table = QTableWidget()
-        self.file_table.setColumnCount(6)
-        self.file_table.setHorizontalHeaderLabels(["文件名", "大小", "修改时间", "类型", "路径", "选择"])
-        self.file_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.file_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.file_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.file_table.cellClicked.connect(self.on_file_selected)
+        # 创建文件树状视图
+        self.file_tree = QTreeWidget()
+        self.file_tree.setHeaderLabels(["文件名", "大小", "修改时间", "类型", "路径"])
+        self.file_tree.setSelectionMode(QTreeWidget.ExtendedSelection)
+        self.file_tree.itemClicked.connect(self.on_file_selected)
         
         # 创建操作按钮区域
         button_layout = QHBoxLayout()
@@ -166,7 +162,7 @@ class FileManagementApp(QMainWindow):
         
         # 添加到主布局
         main_layout.addLayout(dir_selection_layout)
-        main_layout.addWidget(self.file_table)
+        main_layout.addWidget(self.file_tree)
         main_layout.addLayout(button_layout)
         
         # 创建文件详情区域
@@ -206,51 +202,81 @@ class FileManagementApp(QMainWindow):
         if not directory or not os.path.exists(directory):
             return
             
-        self.files = self.file_manager.load_files(directory)
+        self.files_tree = self.file_manager.load_files_tree(directory)
         
-        # 填充表格
-        self.file_table.setRowCount(len(self.files))
-        for i, file_info in enumerate(self.files):
-            self.file_table.setItem(i, 0, QTableWidgetItem(file_info['name']))
-            self.file_table.setItem(i, 1, QTableWidgetItem(self.file_manager.format_size(file_info['size'])))
-            self.file_table.setItem(i, 2, QTableWidgetItem(datetime.fromtimestamp(file_info['modified']).strftime('%Y-%m-%d %H:%M:%S')))
-            self.file_table.setItem(i, 3, QTableWidgetItem(file_info['type']))
-            self.file_table.setItem(i, 4, QTableWidgetItem(file_info['path']))
+        # 清空树状视图
+        self.file_tree.clear()
+        
+        # 填充树状视图
+        self.populate_tree(self.files_tree, self.file_tree)
+        
+        # 展开根节点
+        self.file_tree.expandAll()
+        
+    def populate_tree(self, node, parent_item):
+        """填充树状视图"""
+        if node['type'] == 'directory':
+            # 创建目录节点
+            tree_item = QTreeWidgetItem(parent_item)
+            tree_item.setText(0, node['name'])
+            tree_item.setText(3, "目录")
+            tree_item.setText(4, node['path'])
+            tree_item.setFlags(tree_item.flags() | Qt.ItemIsUserCheckable)
+            tree_item.setCheckState(0, Qt.Unchecked)
             
-            # 添加复选框
-            checkbox = QTableWidgetItem()
-            checkbox.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
-            checkbox.setCheckState(Qt.Unchecked)
-            self.file_table.setItem(i, 5, checkbox)
+            # 递归添加子节点
+            for child in node['children']:
+                self.populate_tree(child, tree_item)
+        else:
+            # 创建文件节点
+            tree_item = QTreeWidgetItem(parent_item)
+            tree_item.setText(0, node['name'])
+            tree_item.setText(1, self.file_manager.format_size(node['size']))
+            tree_item.setText(2, datetime.fromtimestamp(node['modified']).strftime('%Y-%m-%d %H:%M:%S'))
+            tree_item.setText(3, node['extension'])
+            tree_item.setText(4, node['path'])
+            tree_item.setFlags(tree_item.flags() | Qt.ItemIsUserCheckable)
+            tree_item.setCheckState(0, Qt.Unchecked)
             
-    def on_file_selected(self, row, column):
+    def on_file_selected(self, item, column):
         """处理文件选择事件"""
-        if column == 5:  # 选择列
-            checkbox = self.file_table.item(row, column)
-            file_info = self.files[row]
-            
-            if checkbox.checkState() == Qt.Checked:
+        if column == 0:  # 只有在第一列点击时才处理选择
+            if item.checkState(0) == Qt.Checked:
+                # 添加到选中列表
+                file_info = {
+                    'name': item.text(0),
+                    'size': item.text(1),
+                    'modified': item.text(2),
+                    'type': item.text(3),
+                    'path': item.text(4)
+                }
                 if file_info not in self.selected_files:
                     self.selected_files.append(file_info)
             else:
+                # 从选中列表移除
+                file_info = {
+                    'name': item.text(0),
+                    'size': item.text(1),
+                    'modified': item.text(2),
+                    'type': item.text(3),
+                    'path': item.text(4)
+                }
                 if file_info in self.selected_files:
                     self.selected_files.remove(file_info)
                     
     def show_file_details(self):
         """显示文件详情"""
-        selected_rows = self.file_table.selectionModel().selectedRows()
-        if not selected_rows:
+        selected_items = self.file_tree.selectedItems()
+        if not selected_items:
             QMessageBox.warning(self, "警告", "请先选择一个文件")
             return
             
-        row = selected_rows[0].row()
-        file_info = self.files[row]
-        
-        self.name_label.setText(file_info['name'])
-        self.size_label.setText(self.file_manager.format_size(file_info['size']))
-        self.modified_label.setText(datetime.fromtimestamp(file_info['modified']).strftime('%Y-%m-%d %H:%M:%S'))
-        self.type_label.setText(file_info['type'])
-        self.path_label.setText(file_info['path'])
+        item = selected_items[0]
+        self.name_label.setText(item.text(0))
+        self.size_label.setText(item.text(1))
+        self.modified_label.setText(item.text(2))
+        self.type_label.setText(item.text(3))
+        self.path_label.setText(item.text(4))
         
     def open_backup_dialog(self):
         """打开备份策略对话框"""
