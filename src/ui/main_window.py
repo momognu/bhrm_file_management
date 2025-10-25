@@ -145,7 +145,7 @@ class FileManagementApp(QMainWindow):
         
         # 创建文件树状视图
         self.file_tree = QTreeWidget()
-        self.file_tree.setHeaderLabels(["文件名", "大小", "修改时间", "类型", "路径"])
+        self.file_tree.setHeaderLabels(["文件名", "大小", "创建时间", "修改时间", "类型", "路径"])
         self.file_tree.setSelectionMode(QTreeWidget.ExtendedSelection)
         self.file_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_tree.customContextMenuRequested.connect(self.open_context_menu)
@@ -237,9 +237,10 @@ class FileManagementApp(QMainWindow):
             tree_item = QTreeWidgetItem(parent_item)
             tree_item.setText(0, node['name'])
             tree_item.setText(1, self.file_manager.format_size(node['size']))
-            tree_item.setText(2, datetime.fromtimestamp(node['modified']).strftime('%Y-%m-%d %H:%M:%S'))
-            tree_item.setText(3, node['extension'])
-            tree_item.setText(4, node['path'])
+            tree_item.setText(2, datetime.fromtimestamp(node['created']).strftime('%Y-%m-%d %H:%M:%S'))
+            tree_item.setText(3, datetime.fromtimestamp(node['modified']).strftime('%Y-%m-%d %H:%M:%S'))
+            tree_item.setText(4, node['extension'])
+            tree_item.setText(5, node['path'])
             tree_item.setFlags(tree_item.flags() | Qt.ItemIsUserCheckable)
             tree_item.setCheckState(0, Qt.Unchecked)
             
@@ -251,9 +252,10 @@ class FileManagementApp(QMainWindow):
                 file_info = {
                     'name': item.text(0),
                     'size': item.text(1),
-                    'modified': item.text(2),
-                    'type': item.text(3),
-                    'path': item.text(4)
+                    'created': item.text(2),
+                    'modified': item.text(3),
+                    'type': item.text(4),
+                    'path': item.text(5)
                 }
                 if file_info not in self.selected_files:
                     self.selected_files.append(file_info)
@@ -262,9 +264,10 @@ class FileManagementApp(QMainWindow):
                 file_info = {
                     'name': item.text(0),
                     'size': item.text(1),
-                    'modified': item.text(2),
-                    'type': item.text(3),
-                    'path': item.text(4)
+                    'created': item.text(2),
+                    'modified': item.text(3),
+                    'type': item.text(4),
+                    'path': item.text(5)
                 }
                 if file_info in self.selected_files:
                     self.selected_files.remove(file_info)
@@ -279,9 +282,9 @@ class FileManagementApp(QMainWindow):
         item = selected_items[0]
         self.name_label.setText(item.text(0))
         self.size_label.setText(item.text(1))
-        self.modified_label.setText(item.text(2))
-        self.type_label.setText(item.text(3))
-        self.path_label.setText(item.text(4))
+        self.modified_label.setText(item.text(3))  # 修改时间在第4列
+        self.type_label.setText(item.text(4))      # 类型在第5列
+        self.path_label.setText(item.text(5))      # 路径在第6列
         
     def open_context_menu(self, position):
         """打开右键菜单"""
@@ -307,7 +310,7 @@ class FileManagementApp(QMainWindow):
     def open_file(self, item):
         """打开文件"""
         try:
-            file_path = item.text(4)
+            file_path = item.text(5)  # 路径在第6列
             # 使用系统默认程序打开文件
             import subprocess
             subprocess.Popen(['start', file_path], shell=True)
@@ -318,9 +321,9 @@ class FileManagementApp(QMainWindow):
         """显示项目详情"""
         self.name_label.setText(item.text(0))
         self.size_label.setText(item.text(1))
-        self.modified_label.setText(item.text(2))
-        self.type_label.setText(item.text(3))
-        self.path_label.setText(item.text(4))
+        self.modified_label.setText(item.text(3))  # 修改时间在第4列
+        self.type_label.setText(item.text(4))      # 类型在第5列
+        self.path_label.setText(item.text(5))      # 路径在第6列
         
     def view_backup_location(self):
         """查看备份位置"""

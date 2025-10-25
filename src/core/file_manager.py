@@ -41,6 +41,7 @@ class FileManager:
                     file_node = {
                         'name': filename,
                         'size': stat.st_size,
+                        'created': stat.st_ctime,
                         'modified': stat.st_mtime,
                         'path': file_path,
                         'type': 'file',
