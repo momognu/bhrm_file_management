@@ -374,6 +374,11 @@ class FileManagementApp(QMainWindow):
         menu.addAction(open_action)
         menu.addAction(details_action)
         
+        # 添加"撤销选择"菜单项
+        deselect_action = QAction("撤销选择", self)
+        deselect_action.triggered.connect(self.deselect_all)
+        menu.addAction(deselect_action)
+        
         # 显示菜单
         menu.exec_(self.file_tree.viewport().mapToGlobal(position))
         
@@ -451,3 +456,23 @@ class FileManagementApp(QMainWindow):
             QSystemTrayIcon.Information,
             2000
         )
+        
+    def deselect_all(self):
+        """撤销所有选择"""
+        # 遍历所有顶级项目
+        for i in range(self.file_tree.topLevelItemCount()):
+            item = self.file_tree.topLevelItem(i)
+            self.deselect_item_and_children(item)
+            
+        # 清空选中文件列表
+        self.selected_files.clear()
+        
+    def deselect_item_and_children(self, item):
+        """递归取消选中项目及其所有子项"""
+        # 取消当前项目的选中状态
+        item.setCheckState(0, Qt.Unchecked)
+        
+        # 递归处理所有子项
+        for i in range(item.childCount()):
+            child = item.child(i)
+            self.deselect_item_and_children(child)
