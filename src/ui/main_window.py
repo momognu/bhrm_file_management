@@ -218,6 +218,14 @@ class FileManagementApp(QMainWindow):
         # 展开根节点
         self.file_tree.expandAll()
         
+        # 设置列宽
+        self.file_tree.setColumnWidth(0, 300)  # 文件名
+        self.file_tree.setColumnWidth(1, 80)   # 大小
+        self.file_tree.setColumnWidth(2, 150)  # 创建时间
+        self.file_tree.setColumnWidth(3, 150)  # 修改时间
+        self.file_tree.setColumnWidth(4, 80)   # 类型
+        self.file_tree.setColumnWidth(5, 300)  # 路径
+        
     def populate_tree(self, node, parent_item):
         """填充树状视图"""
         if node['type'] == 'directory':
