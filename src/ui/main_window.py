@@ -150,6 +150,15 @@ class FileManagementApp(QMainWindow):
         self.file_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_tree.customContextMenuRequested.connect(self.open_context_menu)
         self.file_tree.itemClicked.connect(self.on_file_selected)
+        self.file_tree.setSortingEnabled(True)
+        
+        # 连接表头点击信号
+        header = self.file_tree.header()
+        header.sectionClicked.connect(self.on_header_clicked)
+        
+        # 初始化排序状态
+        self.sort_column = 2  # 默认按创建时间排序
+        self.sort_order = Qt.DescendingOrder  # 默认倒序
         
         # 创建操作按钮区域
         button_layout = QHBoxLayout()
@@ -221,10 +230,13 @@ class FileManagementApp(QMainWindow):
         # 设置列宽
         self.file_tree.setColumnWidth(0, 300)  # 文件名
         self.file_tree.setColumnWidth(1, 80)   # 大小
-        self.file_tree.setColumnWidth(2, 150)  # 创建时间
-        self.file_tree.setColumnWidth(3, 150)  # 修改时间
+        self.file_tree.setColumnWidth(2, 160)  # 创建时间
+        self.file_tree.setColumnWidth(3, 160)  # 修改时间
         self.file_tree.setColumnWidth(4, 80)   # 类型
         self.file_tree.setColumnWidth(5, 300)  # 路径
+        
+        # 默认按创建时间倒序排列
+        self.file_tree.sortItems(2, Qt.DescendingOrder)
         
     def populate_tree(self, node, parent_item):
         """填充树状视图"""
@@ -332,6 +344,20 @@ class FileManagementApp(QMainWindow):
         self.modified_label.setText(item.text(3))  # 修改时间在第4列
         self.type_label.setText(item.text(4))      # 类型在第5列
         self.path_label.setText(item.text(5))      # 路径在第6列
+        
+    def on_header_clicked(self, column):
+        """处理表头点击事件"""
+        # 切换排序顺序
+        if self.sort_column == column:
+            # 如果点击的是当前排序列，则切换排序顺序
+            self.sort_order = Qt.AscendingOrder if self.sort_order == Qt.DescendingOrder else Qt.DescendingOrder
+        else:
+            # 如果点击的是其他列，则默认使用降序排序
+            self.sort_column = column
+            self.sort_order = Qt.DescendingOrder
+            
+        # 执行排序
+        self.file_tree.sortItems(self.sort_column, self.sort_order)
         
     def view_backup_location(self):
         """查看备份位置"""
