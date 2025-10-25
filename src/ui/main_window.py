@@ -167,15 +167,12 @@ class FileManagementApp(QMainWindow):
         self.backup_btn.clicked.connect(self.open_backup_dialog)
         self.details_btn = QPushButton("查看详情")
         self.details_btn.clicked.connect(self.show_file_details)
-        self.view_backup_btn = QPushButton("查看备份")
-        self.view_backup_btn.clicked.connect(self.view_backup_location)
         
         self.manage_backup_btn = QPushButton("管理策略")
         self.manage_backup_btn.clicked.connect(self.open_backup_manager)
         
         button_layout.addWidget(self.backup_btn)
         button_layout.addWidget(self.details_btn)
-        button_layout.addWidget(self.view_backup_btn)
         button_layout.addWidget(self.manage_backup_btn)
         button_layout.addStretch()
         
@@ -419,20 +416,6 @@ class FileManagementApp(QMainWindow):
         # 执行排序
         self.file_tree.sortItems(self.sort_column, self.sort_order)
         
-    def view_backup_location(self):
-        """查看备份位置"""
-        if not self.backup_manager.backup_tasks:
-            QMessageBox.information(self, "信息", "当前没有备份任务")
-            return
-            
-        # 获取第一个备份任务的备份目录
-        backup_dir = self.backup_manager.backup_tasks[0].backup_dir
-        try:
-            # 使用系统默认程序打开目录
-            import subprocess
-            subprocess.Popen(['start', backup_dir], shell=True)
-        except Exception as e:
-            QMessageBox.warning(self, "错误", f"无法打开备份目录: {e}")
         
     def open_backup_dialog(self):
         """打开备份策略对话框"""

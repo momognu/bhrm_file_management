@@ -1,3 +1,5 @@
+import os
+import subprocess
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import (
@@ -40,18 +42,24 @@ class BackupManagerDialog(QDialog):
         self.task_table.setEditTriggers(QTableWidget.NoEditTriggers)  # 设置为只读
         self.task_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         
+        # 连接双击信号
+        self.task_table.cellDoubleClicked.connect(self.on_cell_double_clicked)
+        
         # 按钮区域
         button_layout = QHBoxLayout()
         self.add_btn = QPushButton("新增任务")
         self.remove_btn = QPushButton("删除任务")
+        self.view_backup_btn = QPushButton("查看备份位置")
         self.close_btn = QPushButton("关闭")
         
         self.add_btn.clicked.connect(self.add_task)
         self.remove_btn.clicked.connect(self.remove_task)
+        self.view_backup_btn.clicked.connect(self.view_backup_location)
         self.close_btn.clicked.connect(self.accept)
         
         button_layout.addWidget(self.add_btn)
         button_layout.addWidget(self.remove_btn)
+        button_layout.addWidget(self.view_backup_btn)
         button_layout.addStretch()
         button_layout.addWidget(self.close_btn)
         
@@ -118,3 +126,32 @@ class BackupManagerDialog(QDialog):
             for index in sorted([row.row() for row in selected_rows], reverse=True):
                 del self.backup_manager.backup_tasks[index]
             self.update_task_list()
+            
+    def view_backup_location(self):
+        """查看备份位置"""
+        selected_rows = self.task_table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "警告", "请先选择一个任务")
+            return
+            
+        row = selected_rows[0].row()
+        if row < len(self.backup_manager.backup_tasks):
+            backup_dir = self.backup_manager.backup_tasks[row].backup_dir
+            self.open_directory(backup_dir)
+            
+    def on_cell_double_clicked(self, row, column):
+        """处理单元格双击事件"""
+        # 如果双击的是备份目录列，则打开对应目录
+        if column == 1 and row < len(self.backup_manager.backup_tasks):
+            backup_dir = self.backup_manager.backup_tasks[row].backup_dir
+            self.open_directory(backup_dir)
+            
+    def open_directory(self, directory):
+        """打开目录"""
+        try:
+            if os.path.exists(directory):
+                subprocess.Popen(['start', directory], shell=True)
+            else:
+                QMessageBox.warning(self, "错误", f"目录不存在: {directory}")
+        except Exception as e:
+            QMessageBox.warning(self, "错误", f"无法打开目录: {e}")
