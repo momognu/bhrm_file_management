@@ -147,6 +147,8 @@ class FileManagementApp(QMainWindow):
         self.file_tree = QTreeWidget()
         self.file_tree.setHeaderLabels(["文件名", "大小", "修改时间", "类型", "路径"])
         self.file_tree.setSelectionMode(QTreeWidget.ExtendedSelection)
+        self.file_tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.file_tree.customContextMenuRequested.connect(self.open_context_menu)
         self.file_tree.itemClicked.connect(self.on_file_selected)
         
         # 创建操作按钮区域
@@ -272,6 +274,45 @@ class FileManagementApp(QMainWindow):
             return
             
         item = selected_items[0]
+        self.name_label.setText(item.text(0))
+        self.size_label.setText(item.text(1))
+        self.modified_label.setText(item.text(2))
+        self.type_label.setText(item.text(3))
+        self.path_label.setText(item.text(4))
+        
+    def open_context_menu(self, position):
+        """打开右键菜单"""
+        item = self.file_tree.itemAt(position)
+        if not item:
+            return
+            
+        menu = QMenu()
+        
+        # 添加菜单项
+        open_action = QAction("打开", self)
+        open_action.triggered.connect(lambda: self.open_file(item))
+        
+        details_action = QAction("查看详情", self)
+        details_action.triggered.connect(lambda: self.show_item_details(item))
+        
+        menu.addAction(open_action)
+        menu.addAction(details_action)
+        
+        # 显示菜单
+        menu.exec_(self.file_tree.viewport().mapToGlobal(position))
+        
+    def open_file(self, item):
+        """打开文件"""
+        try:
+            file_path = item.text(4)
+            # 使用系统默认程序打开文件
+            import subprocess
+            subprocess.Popen(['start', file_path], shell=True)
+        except Exception as e:
+            QMessageBox.warning(self, "错误", f"无法打开文件: {e}")
+            
+    def show_item_details(self, item):
+        """显示项目详情"""
         self.name_label.setText(item.text(0))
         self.size_label.setText(item.text(1))
         self.modified_label.setText(item.text(2))
