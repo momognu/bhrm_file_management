@@ -1,7 +1,12 @@
 [project]
 name = "bhrm-file-management"
 version = "0.1.0"
-description = "Add your description here"
+description = "文件管理系统 - GUI应用程序，用于管理指定目录下的文件，支持备份策略和系统托盘运行"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "PyQt5>=5.15.0",
+    "schedule>=1.2.0",
+    "pystray>=0.19.0",
+    "Pillow>=9.0.0",
+]
