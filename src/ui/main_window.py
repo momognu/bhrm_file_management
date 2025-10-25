@@ -36,7 +36,7 @@ class FileManagementApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("BHRM文件管理器")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setGeometry(100, 100, 1440, 900)
         
         # 配置文件路径
         self.config_file = "file_management_config.json"
@@ -230,11 +230,11 @@ class FileManagementApp(QMainWindow):
         self.file_tree.expandAll()
         
         # 设置列宽
-        self.file_tree.setColumnWidth(0, 300)  # 文件名
-        self.file_tree.setColumnWidth(1, 80)   # 大小
+        self.file_tree.setColumnWidth(0, 550)  # 文件名
+        self.file_tree.setColumnWidth(1, 120)   # 大小
         self.file_tree.setColumnWidth(2, 160)  # 创建时间
         self.file_tree.setColumnWidth(3, 160)  # 修改时间
-        self.file_tree.setColumnWidth(4, 80)   # 类型
+        self.file_tree.setColumnWidth(4, 120)   # 类型
         self.file_tree.setColumnWidth(5, 300)  # 路径
         
         # 默认按创建时间倒序排列
