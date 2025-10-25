@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import (
 from src.core.backup_manager import BackupManager
 from src.core.file_manager import FileManager
 from src.ui.backup_dialog import BackupDialog
+from src.ui.backup_manager_dialog import BackupManagerDialog
 
 
 class FileManagementApp(QMainWindow):
@@ -169,9 +170,13 @@ class FileManagementApp(QMainWindow):
         self.view_backup_btn = QPushButton("查看备份")
         self.view_backup_btn.clicked.connect(self.view_backup_location)
         
+        self.manage_backup_btn = QPushButton("管理策略")
+        self.manage_backup_btn.clicked.connect(self.open_backup_manager)
+        
         button_layout.addWidget(self.backup_btn)
         button_layout.addWidget(self.details_btn)
         button_layout.addWidget(self.view_backup_btn)
+        button_layout.addWidget(self.manage_backup_btn)
         button_layout.addStretch()
         
         # 添加到主布局
@@ -476,3 +481,8 @@ class FileManagementApp(QMainWindow):
         for i in range(item.childCount()):
             child = item.child(i)
             self.deselect_item_and_children(child)
+            
+    def open_backup_manager(self):
+        """打开备份管理对话框"""
+        dialog = BackupManagerDialog(self.backup_manager, self)
+        dialog.exec_()

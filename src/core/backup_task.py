@@ -4,12 +4,13 @@ from datetime import datetime
 
 
 class BackupTask:
-    def __init__(self, files, backup_dir, start_time, end_time, frequency):
+    def __init__(self, files, backup_dir, start_time, end_time, frequency, name=None):
         self.files = files
         self.backup_dir = backup_dir
         self.start_time = start_time
         self.end_time = end_time
         self.frequency = frequency
+        self.name = name if name else f"{datetime.now().strftime('%Y-%m-%d_%H_%M_%S')}_备份策略"
         self.last_backup = None
         
     def should_backup(self, current_time):

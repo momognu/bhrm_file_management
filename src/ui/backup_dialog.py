@@ -26,13 +26,22 @@ class BackupDialog(QDialog):
         self.backup_config_file = "backup_config.json"
         self.setWindowTitle("设置备份策略")
         self.setModal(True)
-        self.resize(400, 300)
+        self.resize(400, 350)
         self.create_ui()
         self.load_backup_config()
         
     def create_ui(self):
         """创建对话框界面"""
         layout = QVBoxLayout()
+        
+        # 任务名称
+        name_layout = QHBoxLayout()
+        self.name_label = QLabel("任务名称:")
+        self.name_edit = QLineEdit()
+        self.name_edit.setText(datetime.now().strftime("%Y-%m-%d_%H_%M_%S_备份策略"))
+        
+        name_layout.addWidget(self.name_label)
+        name_layout.addWidget(self.name_edit)
         
         # 备份目录选择
         dir_layout = QHBoxLayout()
@@ -82,6 +91,7 @@ class BackupDialog(QDialog):
         button_layout.addWidget(self.cancel_btn)
         
         # 添加到主布局
+        layout.addLayout(name_layout)
         layout.addLayout(dir_layout)
         layout.addWidget(time_range_group)
         layout.addWidget(frequency_group)
@@ -125,7 +135,8 @@ class BackupDialog(QDialog):
             self.backup_dir_edit.text(),
             self.start_time_edit.dateTime().toPyDateTime(),
             self.end_time_edit.dateTime().toPyDateTime(),
-            self.frequency_combo.currentText()
+            self.frequency_combo.currentText(),
+            self.name_edit.text()
         )
         
     def accept(self):
