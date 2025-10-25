@@ -267,30 +267,80 @@ class FileManagementApp(QMainWindow):
     def on_file_selected(self, item, column):
         """处理文件选择事件"""
         if column == 0:  # 只有在第一列点击时才处理选择
+            # 检查是否是目录
+            is_directory = (item.text(3) == "目录")
+            
             if item.checkState(0) == Qt.Checked:
-                # 添加到选中列表
-                file_info = {
-                    'name': item.text(0),
-                    'size': item.text(1),
-                    'created': item.text(2),
-                    'modified': item.text(3),
-                    'type': item.text(4),
-                    'path': item.text(5)
-                }
-                if file_info not in self.selected_files:
-                    self.selected_files.append(file_info)
+                if is_directory:
+                    # 如果是目录，选中所有子项
+                    self.select_all_children(item, True)
+                else:
+                    # 添加到选中列表
+                    file_info = {
+                        'name': item.text(0),
+                        'size': item.text(1),
+                        'created': item.text(2),
+                        'modified': item.text(3),
+                        'type': item.text(4),
+                        'path': item.text(5)
+                    }
+                    if file_info not in self.selected_files:
+                        self.selected_files.append(file_info)
             else:
-                # 从选中列表移除
-                file_info = {
-                    'name': item.text(0),
-                    'size': item.text(1),
-                    'created': item.text(2),
-                    'modified': item.text(3),
-                    'type': item.text(4),
-                    'path': item.text(5)
-                }
-                if file_info in self.selected_files:
-                    self.selected_files.remove(file_info)
+                if is_directory:
+                    # 如果是目录，取消选中所有子项
+                    self.select_all_children(item, False)
+                else:
+                    # 从选中列表移除
+                    file_info = {
+                        'name': item.text(0),
+                        'size': item.text(1),
+                        'created': item.text(2),
+                        'modified': item.text(3),
+                        'type': item.text(4),
+                        'path': item.text(5)
+                    }
+                    if file_info in self.selected_files:
+                        self.selected_files.remove(file_info)
+                     
+    def select_all_children(self, item, select):
+        """递归选中或取消选中所有子项"""
+        # 处理当前项的所有直接子项
+        for i in range(item.childCount()):
+            child = item.child(i)
+            # 设置复选框状态
+            if select:
+                child.setCheckState(0, Qt.Checked)
+                # 如果是文件，添加到选中列表
+                if child.text(3) != "目录":
+                    file_info = {
+                        'name': child.text(0),
+                        'size': child.text(1),
+                        'created': child.text(2),
+                        'modified': child.text(3),
+                        'type': child.text(4),
+                        'path': child.text(5)
+                    }
+                    if file_info not in self.selected_files:
+                        self.selected_files.append(file_info)
+            else:
+                child.setCheckState(0, Qt.Unchecked)
+                # 如果是文件，从选中列表移除
+                if child.text(3) != "目录":
+                    file_info = {
+                        'name': child.text(0),
+                        'size': child.text(1),
+                        'created': child.text(2),
+                        'modified': child.text(3),
+                        'type': child.text(4),
+                        'path': child.text(5)
+                    }
+                    if file_info in self.selected_files:
+                        self.selected_files.remove(file_info)
+                
+            # 如果子项是目录，递归处理其子项
+            if child.text(3) == "目录":
+                self.select_all_children(child, select)
                     
     def show_file_details(self):
         """显示文件详情"""
