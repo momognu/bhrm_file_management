@@ -381,6 +381,11 @@ class FileManagementApp(QMainWindow):
         deselect_action.triggered.connect(self.deselect_all)
         menu.addAction(deselect_action)
         
+        # 添加"勾选文件"菜单项
+        select_files_action = QAction("勾选文件", self)
+        select_files_action.triggered.connect(lambda: self.select_files_from_context_menu(item))
+        menu.addAction(select_files_action)
+        
         # 显示菜单
         menu.exec_(self.file_tree.viewport().mapToGlobal(position))
         
@@ -469,3 +474,28 @@ class FileManagementApp(QMainWindow):
         """打开备份管理对话框"""
         dialog = BackupManagerDialog(self.backup_manager, self)
         dialog.exec_()
+        
+    def select_files_from_context_menu(self, item):
+        """从右键菜单勾选文件"""
+        # 获取当前选中的项目
+        selected_items = self.file_tree.selectedItems()
+        
+        # 如果没有选中项目，则勾选右键点击的项目
+        if not selected_items:
+            selected_items = [item]
+        
+        # 遍历选中的项目，只勾选文件（不包括目录）
+        for selected_item in selected_items:
+            if selected_item.text(3) != "目录":  # 不是目录
+                selected_item.setCheckState(0, Qt.Checked)
+                # 添加到选中列表
+                file_info = {
+                    'name': selected_item.text(0),
+                    'size': selected_item.text(1),
+                    'created': selected_item.text(2),
+                    'modified': selected_item.text(3),
+                    'type': selected_item.text(4),
+                    'path': selected_item.text(5)
+                }
+                if file_info not in self.selected_files:
+                    self.selected_files.append(file_info)
