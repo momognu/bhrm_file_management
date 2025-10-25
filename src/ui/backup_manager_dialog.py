@@ -40,7 +40,15 @@ class BackupManagerDialog(QDialog):
         self.task_table.setColumnCount(5)
         self.task_table.setHorizontalHeaderLabels(["任务名称", "备份目录", "开始时间", "结束时间", "频率"])
         self.task_table.setEditTriggers(QTableWidget.NoEditTriggers)  # 设置为只读
-        self.task_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        
+        # 设置列宽策略，允许手动调节
+        self.task_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        # 设置默认列宽
+        self.task_table.setColumnWidth(0, 200)  # 任务名称
+        self.task_table.setColumnWidth(1, 200)  # 备份目录
+        self.task_table.setColumnWidth(2, 150)  # 开始时间
+        self.task_table.setColumnWidth(3, 150)  # 结束时间
+        self.task_table.setColumnWidth(4, 100)  # 频率
         
         # 连接双击信号
         self.task_table.cellDoubleClicked.connect(self.on_cell_double_clicked)
