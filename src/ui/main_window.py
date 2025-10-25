@@ -35,7 +35,7 @@ from src.ui.backup_dialog import BackupDialog
 class FileManagementApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("文件管理系统")
+        self.setWindowTitle("BHRM文件管理器")
         self.setGeometry(100, 100, 1200, 800)
         
         # 配置文件路径
@@ -274,7 +274,7 @@ class FileManagementApp(QMainWindow):
         event.ignore()
         self.hide()
         self.tray_icon.showMessage(
-            "文件管理系统",
+            "BHRM文件管理器",
             "程序已在后台运行",
             QSystemTrayIcon.Information,
             2000
