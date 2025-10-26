@@ -1,12 +1,15 @@
 import os
 import subprocess
 
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
     QDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMenu,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -50,8 +53,10 @@ class BackupManagerDialog(QDialog):
         self.task_table.setColumnWidth(3, 160)  # 结束时间
         self.task_table.setColumnWidth(4, 100)  # 频率
         
-        # 连接双击信号
+        # 连接双击信号和右键菜单
         self.task_table.cellDoubleClicked.connect(self.on_cell_double_clicked)
+        self.task_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.task_table.customContextMenuRequested.connect(self.open_context_menu)
         
         # 按钮区域
         button_layout = QHBoxLayout()
@@ -110,25 +115,41 @@ class BackupManagerDialog(QDialog):
         # 获取主窗口引用
         main_window = self.parent()
         if not main_window.selected_files:
-            QMessageBox.warning(self, "警告", "请先在主窗口选择要备份的文件")
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("警告")
+            msg_box.setText("请先在主窗口选择要备份的文件")
+            msg_box.exec_()
             return
             
         dialog = BackupDialog(main_window.selected_files, self)
         if dialog.exec_():
             backup_task = dialog.get_backup_task()
             self.backup_manager.add_task(backup_task)
-            QMessageBox.information(self, "成功", "备份任务已创建")
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Information)
+            msg_box.setWindowTitle("成功")
+            msg_box.setText("备份任务已创建")
+            msg_box.exec_()
             self.update_task_list()
         
     def remove_task(self):
         """删除任务"""
         selected_rows = self.task_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "警告", "请先选择要删除的任务")
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("警告")
+            msg_box.setText("请先选择要删除的任务")
+            msg_box.exec_()
             return
             
-        reply = QMessageBox.question(self, "确认", "确定要删除选中的任务吗？", 
-                                   QMessageBox.Yes | QMessageBox.No)
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Question)
+        msg_box.setWindowTitle("确认")
+        msg_box.setText("确定要删除选中的任务吗？")
+        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        reply = msg_box.exec_()
         if reply == QMessageBox.Yes:
             # 从后往前删除，避免索引问题
             for index in sorted([row.row() for row in selected_rows], reverse=True):
@@ -139,7 +160,11 @@ class BackupManagerDialog(QDialog):
         """查看备份位置"""
         selected_rows = self.task_table.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.warning(self, "警告", "请先选择一个任务")
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("警告")
+            msg_box.setText("请先选择一个任务")
+            msg_box.exec_()
             return
             
         row = selected_rows[0].row()
@@ -160,6 +185,40 @@ class BackupManagerDialog(QDialog):
             if os.path.exists(directory):
                 subprocess.Popen(['start', directory], shell=True)
             else:
-                QMessageBox.warning(self, "错误", f"目录不存在: {directory}")
+                msg_box = QMessageBox()
+                msg_box.setIcon(QMessageBox.Warning)
+                msg_box.setWindowTitle("错误")
+                msg_box.setText(f"目录不存在: {directory}")
+                msg_box.exec_()
         except Exception as e:
-            QMessageBox.warning(self, "错误", f"无法打开目录: {e}")
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("错误")
+            msg_box.setText(f"无法打开目录: {e}")
+            msg_box.exec_()
+            
+    def open_context_menu(self, position):
+        """打开右键菜单"""
+        item = self.task_table.itemAt(position)
+        if not item:
+            return
+            
+        menu = QMenu()
+        
+        # 添加复制菜单项
+        copy_action = QAction("复制", self)
+        copy_action.triggered.connect(lambda: self.copy_cell_content(item))
+        menu.addAction(copy_action)
+        
+        # 显示菜单
+        menu.exec_(self.task_table.viewport().mapToGlobal(position))
+        
+    def copy_cell_content(self, item):
+        """复制单元格内容到剪贴板"""
+        clipboard = QApplication.clipboard()
+        clipboard.setText(item.text())
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Information)
+        msg_box.setWindowTitle("提示")
+        msg_box.setText(f"已复制: {item.text()}")
+        msg_box.exec_()

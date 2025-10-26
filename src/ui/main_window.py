@@ -348,7 +348,11 @@ class FileManagementApp(QMainWindow):
         """显示文件详情"""
         selected_items = self.file_tree.selectedItems()
         if not selected_items:
-            QMessageBox.warning(self, "警告", "请先选择一个文件")
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("警告")
+            msg_box.setText("请先选择一个文件")
+            msg_box.exec_()
             return
             
         item = selected_items[0]
@@ -397,7 +401,11 @@ class FileManagementApp(QMainWindow):
             import subprocess
             subprocess.Popen(['start', file_path], shell=True)
         except Exception as e:
-            QMessageBox.warning(self, "错误", f"无法打开文件: {e}")
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("错误")
+            msg_box.setText(f"无法打开文件: {e}")
+            msg_box.exec_()
             
     def show_item_details(self, item):
         """显示项目详情"""
@@ -425,14 +433,22 @@ class FileManagementApp(QMainWindow):
     def open_backup_dialog(self):
         """打开备份策略对话框"""
         if not self.selected_files:
-            QMessageBox.warning(self, "警告", "请先选择要备份的文件")
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("警告")
+            msg_box.setText("请先选择要备份的文件")
+            msg_box.exec_()
             return
             
         dialog = BackupDialog(self.selected_files, self)
         if dialog.exec_():
             backup_task = dialog.get_backup_task()
             self.backup_manager.add_task(backup_task)
-            QMessageBox.information(self, "成功", "备份任务已创建")
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Information)
+            msg_box.setWindowTitle("成功")
+            msg_box.setText("备份任务已创建")
+            msg_box.exec_()
             
     def check_backup_tasks(self):
         """检查并执行备份任务"""
