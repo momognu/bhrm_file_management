@@ -38,6 +38,9 @@ class FileManagementApp(QMainWindow):
         self.setWindowTitle("BHRM文件管理器")
         self.setGeometry(100, 100, 1440, 900)
         
+        # 设置窗口图标
+        self.set_window_icon()
+        
         # 配置文件路径
         self.config_file = "file_management_config.json"
         
@@ -63,24 +66,34 @@ class FileManagementApp(QMainWindow):
         self.backup_timer.timeout.connect(self.check_backup_tasks)
         self.backup_timer.start(60000)  # 每分钟检查一次
         
+    def set_window_icon(self):
+        """设置窗口图标"""
+        icon_path = "static/bhrm_logo.png"
+        if os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path)
+            self.setWindowIcon(QIcon(pixmap))
+        
     def create_system_tray(self):
         """创建系统托盘图标"""
-        # 创建一个简单的图标
-        image = Image.new('RGB', (64, 64), color=(73, 109, 137))
-        # 绘制一个简单的文件图标
-        draw = ImageDraw.Draw(image)
-        draw.rectangle([10, 10, 54, 54], outline='white', width=2)
-        draw.line([10, 10, 30, 10], fill='white', width=2)
-        draw.line([30, 10, 30, 20], fill='white', width=2)
-        draw.line([10, 54, 10, 40], fill='white', width=2)
-        
-        # 转换为PyQt图标
-        byte_io = BytesIO()
-        image.save(byte_io, format='PNG')
-        pixmap = QPixmap()
-        pixmap.loadFromData(byte_io.getvalue())
-        
-        self.tray_icon = QSystemTrayIcon(QIcon(pixmap), self)
+        # 使用提供的图片文件作为图标
+        icon_path = "static/bhrm_logo.png"
+        if os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path)
+            self.tray_icon = QSystemTrayIcon(QIcon(pixmap), self)
+        else:
+            # 如果图片文件不存在，使用默认图标
+            image = Image.new('RGB', (64, 64), color=(73, 109, 137))
+            draw = ImageDraw.Draw(image)
+            draw.rectangle([10, 10, 54, 54], outline='white', width=2)
+            draw.line([10, 10, 30, 10], fill='white', width=2)
+            draw.line([30, 10, 30, 20], fill='white', width=2)
+            draw.line([10, 54, 10, 40], fill='white', width=2)
+            
+            byte_io = BytesIO()
+            image.save(byte_io, format='PNG')
+            pixmap = QPixmap()
+            pixmap.loadFromData(byte_io.getvalue())
+            self.tray_icon = QSystemTrayIcon(QIcon(pixmap), self)
         
         # 连接双击事件
         self.tray_icon.activated.connect(self.on_tray_icon_activated)
