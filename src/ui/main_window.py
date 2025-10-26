@@ -82,6 +82,9 @@ class FileManagementApp(QMainWindow):
         
         self.tray_icon = QSystemTrayIcon(QIcon(pixmap), self)
         
+        # 连接双击事件
+        self.tray_icon.activated.connect(self.on_tray_icon_activated)
+        
         # 创建托盘菜单
         tray_menu = QMenu()
         restore_action = QAction("恢复窗口", self)
@@ -465,6 +468,21 @@ class FileManagementApp(QMainWindow):
             QSystemTrayIcon.Information,
             2000
         )
+        
+    def on_tray_icon_activated(self, reason):
+        """处理托盘图标激活事件"""
+        if reason == QSystemTrayIcon.DoubleClick:
+            # 双击托盘图标时恢复窗口显示
+            self.showNormal()
+            self.raise_()
+            self.activateWindow()
+        
+    def changeEvent(self, event):
+        """处理窗口状态变化事件"""
+        # 当窗口从最小化恢复时显示
+        if event.type() == event.WindowStateChange and event.oldState() == Qt.WindowMinimized:
+            self.showNormal()
+            event.accept()
         
     def deselect_all(self):
         """撤销所有选择"""
