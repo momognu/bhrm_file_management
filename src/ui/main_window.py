@@ -151,6 +151,7 @@ class FileManagementApp(QMainWindow):
         self.file_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.file_tree.customContextMenuRequested.connect(self.open_context_menu)
         self.file_tree.itemClicked.connect(self.on_file_selected)
+        self.file_tree.itemDoubleClicked.connect(self.on_file_double_clicked)
         self.file_tree.setSortingEnabled(True)
         
         # 连接表头点击信号
@@ -304,7 +305,7 @@ class FileManagementApp(QMainWindow):
                     }
                     if file_info in self.selected_files:
                         self.selected_files.remove(file_info)
-                     
+                      
     def select_all_children(self, item, select):
         """递归选中或取消选中所有子项"""
         # 处理当前项的所有直接子项
@@ -429,7 +430,6 @@ class FileManagementApp(QMainWindow):
         # 执行排序
         self.file_tree.sortItems(self.sort_column, self.sort_order)
         
-        
     def open_backup_dialog(self):
         """打开备份策略对话框"""
         if not self.selected_files:
@@ -512,6 +512,42 @@ class FileManagementApp(QMainWindow):
                     'modified': selected_item.text(3),
                     'type': selected_item.text(4),
                     'path': selected_item.text(5)
+                }
+                if file_info not in self.selected_files:
+                    self.selected_files.append(file_info)
+                    
+    def on_file_double_clicked(self, item, column):
+        """处理文件双击事件"""
+        # 只有双击文件时才处理
+        if item.text(3) != "目录":  # 不是目录
+            # 检查当前是否已勾选
+            is_checked = (item.checkState(0) == Qt.Checked)
+            
+            if is_checked:
+                # 如果已勾选，则取消勾选
+                item.setCheckState(0, Qt.Unchecked)
+                # 从选中列表移除
+                file_info = {
+                    'name': item.text(0),
+                    'size': item.text(1),
+                    'created': item.text(2),
+                    'modified': item.text(3),
+                    'type': item.text(4),
+                    'path': item.text(5)
+                }
+                if file_info in self.selected_files:
+                    self.selected_files.remove(file_info)
+            else:
+                # 如果未勾选，则勾选
+                item.setCheckState(0, Qt.Checked)
+                # 添加到选中列表
+                file_info = {
+                    'name': item.text(0),
+                    'size': item.text(1),
+                    'created': item.text(2),
+                    'modified': item.text(3),
+                    'type': item.text(4),
+                    'path': item.text(5)
                 }
                 if file_info not in self.selected_files:
                     self.selected_files.append(file_info)
