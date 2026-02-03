@@ -134,6 +134,9 @@ class PrintThread(QThread):
                 print("请安装poppler: https://github.com/oschwartz10612/poppler-windows/releases/")
                 return False
 
+            # 获取原文件名（不含扩展名）
+            original_filename = os.path.splitext(os.path.basename(file_path))[0]
+
             # 使用pdf2image将PDF转换为图片列表
             # dpi=300保证打印质量
             # thread_count=4提高转换速度
@@ -152,7 +155,9 @@ class PrintThread(QThread):
             # 遍历每一页并打印
             for page_num, img in enumerate(images):
                 try:
-                    if not self.print_image_to_printer(img, printer_name):
+                    # 将页码拼接到文件名：原文件名_页码
+                    page_filename = f"{original_filename}_page{page_num + 1}"
+                    if not self.print_image_to_printer(img, printer_name, page_filename):
                         print(f"打印第{page_num + 1}页失败")
                         return False
                 except Exception as e:
@@ -209,22 +214,32 @@ class PrintThread(QThread):
             # 打开图片
             img = Image.open(file_path)
 
-            # 打印图片
-            return self.print_image_to_printer(img, printer_name)
+            # 获取原文件名
+            original_filename = os.path.basename(file_path)
+
+            # 打印图片，传递原文件名
+            return self.print_image_to_printer(img, printer_name, original_filename)
 
         except Exception as e:
             print(f"图片文件打印失败: {e}")
             return False
 
-    def print_image_to_printer(self, img, printer_name):
+    def print_image_to_printer(self, img, printer_name, original_filename=None):
         """将PIL Image打印到指定打印机"""
         try:
             # 确保图片是RGB模式
             if img.mode != 'RGB':
                 img = img.convert('RGB')
 
-            # 创建临时文件保存图片
-            temp_file = tempfile.mktemp(suffix=".bmp")
+            # 创建临时文件保存图片，将原文件名拼接到临时文件名后面
+            if original_filename:
+                # 移除原文件名的扩展名
+                base_name = os.path.splitext(original_filename)[0]
+                # 创建临时文件名：temp_原文件名_随机字符.bmp
+                temp_file = tempfile.mktemp(prefix=f"temp_{base_name}_", suffix=".bmp")
+            else:
+                temp_file = tempfile.mktemp(suffix=".bmp")
+
             img.save(temp_file, format='BMP')
 
             try:
