@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import tempfile
 from PIL import Image
@@ -172,14 +173,19 @@ class PrintThread(QThread):
 
     def find_poppler_path(self):
         """查找poppler的安装路径"""
-        # 获取项目根目录
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        # 获取可执行文件所在目录或项目根目录
+        if getattr(sys, 'frozen', False):
+            # 打包后的可执行文件
+            executable_dir = os.path.dirname(sys.executable)
+        else:
+            # 开发环境：从当前文件向上三级目录到项目根目录
+            executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
         # 常见的poppler安装路径
         possible_paths = [
-            # 项目目录中的poppler
-            os.path.join(project_root, "poppler", "poppler-24.02.0", "Library", "bin"),
-            os.path.join(project_root, "poppler", "Library", "bin"),
+            # 可执行文件/项目目录中的poppler
+            os.path.join(executable_dir, "poppler", "poppler-24.02.0", "Library", "bin"),
+            os.path.join(executable_dir, "poppler", "Library", "bin"),
             # 系统路径
             r"C:\Program Files\poppler\Library\bin",
             r"C:\Program Files (x86)\poppler\Library\bin",
@@ -202,6 +208,7 @@ class PrintThread(QThread):
             return None  # poppler在PATH中，不需要指定路径
 
         print("未找到poppler")
+        print(f"已搜索路径: {possible_paths}")
         return None
 
     def print_image_file(self, file_path):
