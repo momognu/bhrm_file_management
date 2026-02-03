@@ -1,5 +1,6 @@
 import os
 import sys
+import io
 import subprocess
 import tempfile
 from PIL import Image
@@ -100,11 +101,11 @@ class PrintThread(QThread):
 
         # 发送完成信号
         if success_count == total:
-            self.finished.emit(True, f"成功打印 {success_count} 个文件")
+            self.finished.emit(True, f"成功发送 {success_count} 个文件到打印机")
         elif success_count > 0:
             self.finished.emit(
                 True,
-                f"成功打印 {success_count}/{total} 个文件\n失败: {', '.join(failed_files)}",
+                f"成功发送 {success_count}/{total} 个文件到打印机\n失败: {', '.join(failed_files)}",
             )
         else:
             self.finished.emit(False, f"打印失败\n{', '.join(failed_files)}")
@@ -132,22 +133,25 @@ class PrintThread(QThread):
             poppler_path = self.find_poppler_path()
             if not poppler_path:
                 print("未找到poppler，无法使用pdf2image打印PDF")
-                print("请安装poppler: https://github.com/oschwartz10612/poppler-windows/releases/")
+                print(
+                    "请安装poppler: https://github.com/oschwartz10612/poppler-windows/releases/"
+                )
                 return False
 
             # 获取原文件名（不含扩展名）
             original_filename = os.path.splitext(os.path.basename(file_path))[0]
 
             # 使用pdf2image将PDF转换为图片列表
-            # dpi=300保证打印质量
+            # dpi足够满足普通文档打印需求，文件大小最小
             # thread_count=4提高转换速度
+            # fmt='jpeg' 减少转换后的文件大小
             try:
                 images = convert_from_path(
                     file_path,
-                    dpi=300,
+                    dpi=192,
                     thread_count=4,
-                    fmt='png',
-                    poppler_path=poppler_path
+                    fmt="jpeg",
+                    poppler_path=poppler_path,
                 )
             except Exception as e:
                 print(f"pdf2image转换失败: {e}")
@@ -158,7 +162,9 @@ class PrintThread(QThread):
                 try:
                     # 将页码拼接到文件名：原文件名_页码
                     page_filename = f"{original_filename}_page{page_num + 1}"
-                    if not self.print_image_to_printer(img, printer_name, page_filename):
+                    if not self.print_image_to_printer(
+                        img, printer_name, page_filename
+                    ):
                         print(f"打印第{page_num + 1}页失败")
                         return False
                 except Exception as e:
@@ -174,17 +180,21 @@ class PrintThread(QThread):
     def find_poppler_path(self):
         """查找poppler的安装路径"""
         # 获取可执行文件所在目录或项目根目录
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             # 打包后的可执行文件
             executable_dir = os.path.dirname(sys.executable)
         else:
             # 开发环境：从当前文件向上三级目录到项目根目录
-            executable_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            executable_dir = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
 
         # 常见的poppler安装路径
         possible_paths = [
             # 可执行文件/项目目录中的poppler
-            os.path.join(executable_dir, "poppler", "poppler-24.02.0", "Library", "bin"),
+            os.path.join(
+                executable_dir, "poppler", "poppler-24.02.0", "Library", "bin"
+            ),
             os.path.join(executable_dir, "poppler", "Library", "bin"),
             # 系统路径
             r"C:\Program Files\poppler\Library\bin",
@@ -203,6 +213,7 @@ class PrintThread(QThread):
 
         # 检查PATH环境变量
         import shutil
+
         if shutil.which("pdftoppm"):
             print("poppler在系统PATH中")
             return None  # poppler在PATH中，不需要指定路径
@@ -235,19 +246,68 @@ class PrintThread(QThread):
         """将PIL Image打印到指定打印机"""
         try:
             # 确保图片是RGB模式
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
+            if img.mode != "RGB":
+                img = img.convert("RGB")
 
-            # 创建临时文件保存图片，将原文件名拼接到临时文件名后面
+            # 准备文档名称
             if original_filename:
-                # 移除原文件名的扩展名
-                base_name = os.path.splitext(original_filename)[0]
-                # 创建临时文件名：temp_原文件名_随机字符.bmp
-                temp_file = tempfile.mktemp(prefix=f"temp_{base_name}_", suffix=".bmp")
+                doc_name = original_filename
             else:
-                temp_file = tempfile.mktemp(suffix=".bmp")
+                doc_name = "Print Document"
 
-            img.save(temp_file, format='BMP')
+            # 调整图片大小以适应A4纸张
+            # A4尺寸约为 595 x 842 像素
+            max_width = 1082
+            max_height = 1536
+
+            # 如果图片过大，进行缩放
+            if img.width > max_width or img.height > max_height:
+                # 计算缩放比例
+                ratio = min(max_width / img.width, max_height / img.height)
+                new_width = int(img.width * ratio)
+                new_height = int(img.height * ratio)
+                img = img.resize((new_width, new_height), Image.LANCZOS)
+
+            # 保存图片副本到temp目录（用于查看效果）
+            try:
+                # 获取项目根目录
+                if getattr(sys, "frozen", False):
+                    # 打包后的可执行文件
+                    project_root = os.path.dirname(sys.executable)
+                else:
+                    # 开发环境：从当前文件向上三级目录到项目根目录
+                    project_root = os.path.dirname(
+                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    )
+
+                # 创建temp目录
+                temp_dir = os.path.join(project_root, "temp")
+                os.makedirs(temp_dir, exist_ok=True)
+
+                # 生成保存文件名
+                if original_filename:
+                    save_filename = f"{original_filename}.jpg"
+                else:
+                    import time
+
+                    save_filename = f"print_{int(time.time())}.jpg"
+
+                # 保存图片到temp目录
+                save_path = os.path.join(temp_dir, save_filename)
+                img.save(save_path, format="JPEG", quality=90, optimize=True)
+                print(f"图片已保存到: {save_path}")
+
+            except Exception as e:
+                print(f"保存图片到temp目录失败: {e}")
+
+            # 使用内存流，避免创建临时文件
+            img_byte_arr = io.BytesIO()
+
+            # 使用JPEG格式，质量90，大幅减少文件大小
+            img.save(img_byte_arr, format="JPEG", quality=90, optimize=True)
+
+            # 获取图片数据
+            img_data = img_byte_arr.getvalue()
 
             try:
                 # 使用win32print打印图片
@@ -255,19 +315,14 @@ class PrintThread(QThread):
                 hPrinter = win32print.OpenPrinter(printer_name)
 
                 # 准备打印作业信息
-                doc_name = os.path.basename(temp_file)
                 pDocInfo = (doc_name, None, "RAW")
 
                 # 启动打印作业
                 win32print.StartDocPrinter(hPrinter, 1, pDocInfo)
 
-                # 读取BMP文件并打印
-                with open(temp_file, "rb") as f:
-                    bmp_data = f.read()
-
                 # 写入打印数据
                 win32print.StartPagePrinter(hPrinter)
-                win32print.WritePrinter(hPrinter, bmp_data)
+                win32print.WritePrinter(hPrinter, img_data)
                 win32print.EndPagePrinter(hPrinter)
                 win32print.EndDocPrinter(hPrinter)
                 win32print.ClosePrinter(hPrinter)
@@ -283,9 +338,8 @@ class PrintThread(QThread):
                 return False
 
             finally:
-                # 清理临时文件
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
+                # 清理内存流
+                img_byte_arr.close()
 
         except Exception as e:
             print(f"图片打印失败: {e}")
