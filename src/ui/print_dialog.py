@@ -1,9 +1,10 @@
 import os
 import subprocess
 import tempfile
+from PIL import Image
+from pdf2image import convert_from_path
 import win32print
 import win32api
-import win32con
 from PyQt5.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -51,8 +52,16 @@ class PrintThread(QThread):
                 ext = file_info["type"].lower()
 
                 if ext == ".pdf":
-                    # PDF文件静默打印
-                    if self.print_pdf_silent(file_path):
+                    # PDF文件使用pikepdf + Pillow打印
+                    result = self.print_pdf_with_pikepdf(file_path)
+                    if result:
+                        success_count += 1
+                    else:
+                        failed_files.append(f"{file_info['name']} (打印失败)")
+
+                elif ext in [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff"]:
+                    # 图片文件直接打印
+                    if self.print_image_file(file_path):
                         success_count += 1
                     else:
                         failed_files.append(f"{file_info['name']} (打印失败)")
@@ -77,27 +86,13 @@ class PrintThread(QThread):
                         success_count += 1
                     else:
                         failed_files.append(f"{file_info['name']} (打印失败)")
-
-                elif ext in [".jpg", ".jpeg", ".png", ".bmp", ".gif"]:
-                    # 图片文件静默打印
-                    if self.print_image_silent(file_path):
-                        success_count += 1
-                    else:
-                        failed_files.append(f"{file_info['name']} (打印失败)")
-
-                elif ext == ".txt":
-                    # 文本文件静默打印
-                    if self.print_text_silent(file_path):
-                        success_count += 1
-                    else:
-                        failed_files.append(f"{file_info['name']} (打印失败)")
                 else:
-                    # 其他文件类型尝试使用默认打印方法
+                    # 其他文件类型使用Windows默认打印
                     try:
-                        self.print_default(file_path)
+                        self.print_with_shellexecute(file_path)
                         success_count += 1
                     except Exception as e:
-                        failed_files.append(f"{file_info['name']} (不支持)")
+                        failed_files.append(f"{file_info['name']} ({str(e)})")
 
             except Exception as e:
                 failed_files.append(f"{file_info['name']} ({str(e)})")
@@ -113,59 +108,185 @@ class PrintThread(QThread):
         else:
             self.finished.emit(False, f"打印失败\n{', '.join(failed_files)}")
 
-    def get_printer_handle(self):
-        """获取打印机句柄"""
+    def get_printer_name(self):
+        """获取打印机名称"""
         try:
             if self.printer_name:
-                # 使用指定的打印机
-                printer_name = self.printer_name
+                return self.printer_name
             else:
-                # 使用默认打印机
-                printer_name = win32print.GetDefaultPrinter()
-
-            # 打开打印机
-            hPrinter = win32print.OpenPrinter(printer_name)
-            return hPrinter, printer_name
+                return win32print.GetDefaultPrinter()
         except Exception as e:
-            print(f"获取打印机句柄失败: {e}")
-            return None, None
+            print(f"获取打印机名称失败: {e}")
+            return None
 
-    def print_pdf_silent(self, file_path):
-        """PDF文件静默打印"""
+    def print_pdf_with_pikepdf(self, file_path):
+        """使用pdf2image将PDF转换为图片后打印"""
         try:
-            # 方法1: 使用win32api直接打印PDF
-            hPrinter, printer_name = self.get_printer_handle()
-            if not hPrinter:
+            printer_name = self.get_printer_name()
+            if not printer_name:
+                print("无法获取打印机名称")
                 return False
 
+            # 查找poppler路径
+            poppler_path = self.find_poppler_path()
+            if not poppler_path:
+                print("未找到poppler，无法使用pdf2image打印PDF")
+                print("请安装poppler: https://github.com/oschwartz10612/poppler-windows/releases/")
+                return False
+
+            # 使用pdf2image将PDF转换为图片列表
+            # dpi=300保证打印质量
+            # thread_count=4提高转换速度
             try:
-                # 使用ShellExecute打印PDF（静默模式）
-                win32api.ShellExecute(
-                    0, "printto", file_path, f'"{printer_name}"', ".", 0
+                images = convert_from_path(
+                    file_path,
+                    dpi=300,
+                    thread_count=4,
+                    fmt='png',
+                    poppler_path=poppler_path
                 )
-                win32print.ClosePrinter(hPrinter)
-                return True
             except Exception as e:
-                print(f"PDF打印方法1失败: {e}")
+                print(f"pdf2image转换失败: {e}")
+                return False
+
+            # 遍历每一页并打印
+            for page_num, img in enumerate(images):
+                try:
+                    if not self.print_image_to_printer(img, printer_name):
+                        print(f"打印第{page_num + 1}页失败")
+                        return False
+                except Exception as e:
+                    print(f"打印第{page_num + 1}页时出错: {e}")
+                    return False
+
+            return True
+
+        except Exception as e:
+            print(f"PDF打印失败: {e}")
+            return False
+
+    def find_poppler_path(self):
+        """查找poppler的安装路径"""
+        # 获取项目根目录
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        # 常见的poppler安装路径
+        possible_paths = [
+            # 项目目录中的poppler
+            os.path.join(project_root, "poppler", "poppler-24.02.0", "Library", "bin"),
+            os.path.join(project_root, "poppler", "Library", "bin"),
+            # 系统路径
+            r"C:\Program Files\poppler\Library\bin",
+            r"C:\Program Files (x86)\poppler\Library\bin",
+            r"C:\poppler\Library\bin",
+            r"C:\Program Files\poppler-24.02.0\Library\bin",
+            r"C:\Program Files\poppler-23.12.0\Library\bin",
+            r"C:\Program Files\poppler-23.11.0\Library\bin",
+        ]
+
+        # 检查常见路径
+        for path in possible_paths:
+            if os.path.exists(path):
+                print(f"找到poppler路径: {path}")
+                return path
+
+        # 检查PATH环境变量
+        import shutil
+        if shutil.which("pdftoppm"):
+            print("poppler在系统PATH中")
+            return None  # poppler在PATH中，不需要指定路径
+
+        print("未找到poppler")
+        return None
+
+    def print_image_file(self, file_path):
+        """打印图片文件"""
+        try:
+            printer_name = self.get_printer_name()
+            if not printer_name:
+                return False
+
+            # 打开图片
+            img = Image.open(file_path)
+
+            # 打印图片
+            return self.print_image_to_printer(img, printer_name)
+
+        except Exception as e:
+            print(f"图片文件打印失败: {e}")
+            return False
+
+    def print_image_to_printer(self, img, printer_name):
+        """将PIL Image打印到指定打印机"""
+        try:
+            # 确保图片是RGB模式
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            # 创建临时文件保存图片
+            temp_file = tempfile.mktemp(suffix=".bmp")
+            img.save(temp_file, format='BMP')
+
+            try:
+                # 使用win32print打印图片
+                # 打开打印机
+                hPrinter = win32print.OpenPrinter(printer_name)
+
+                # 准备打印作业信息
+                doc_name = os.path.basename(temp_file)
+                pDocInfo = (doc_name, None, "RAW")
+
+                # 启动打印作业
+                win32print.StartDocPrinter(hPrinter, 1, pDocInfo)
+
+                # 读取BMP文件并打印
+                with open(temp_file, "rb") as f:
+                    bmp_data = f.read()
+
+                # 写入打印数据
+                win32print.StartPagePrinter(hPrinter)
+                win32print.WritePrinter(hPrinter, bmp_data)
+                win32print.EndPagePrinter(hPrinter)
+                win32print.EndDocPrinter(hPrinter)
                 win32print.ClosePrinter(hPrinter)
 
-                # 方法2: 使用命令行工具打印
+                return True
+
+            except Exception as e:
+                print(f"图片打印失败: {e}")
                 try:
-                    # 尝试使用Adobe Reader或其他PDF阅读器的命令行打印
-                    subprocess.run(
-                        [
-                            "powershell",
-                            "-Command",
-                            f'$proc = Start-Process -FilePath "{file_path}" -ArgumentList "/t", "{printer_name}" -WindowStyle Hidden -PassThru; Start-Sleep -Seconds 2; $proc | Stop-Process -Force',
-                        ],
-                        check=True,
-                        timeout=10,
-                    )
-                    return True
+                    win32print.ClosePrinter(hPrinter)
                 except:
-                    return False
+                    pass
+                return False
+
+            finally:
+                # 清理临时文件
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+
         except Exception as e:
-            print(f"PDF静默打印失败: {e}")
+            print(f"图片打印失败: {e}")
+            return False
+
+    def print_with_shellexecute(self, file_path):
+        """使用Windows ShellExecute打印"""
+        try:
+            printer_name = self.get_printer_name()
+            if not printer_name:
+                return False
+
+            win32api.ShellExecute(
+                0,
+                "printto",
+                file_path,
+                f'"{printer_name}"',
+                ".",
+                0,  # SW_HIDE = 0，隐藏窗口
+            )
+            return True
+        except Exception as e:
+            print(f"ShellExecute打印失败: {e}")
             return False
 
     def print_word_silent(self, file_path):
@@ -180,8 +301,9 @@ class PrintThread(QThread):
             doc = word.Documents.Open(file_path)
 
             # 获取打印机名称
-            if self.printer_name:
-                word.ActivePrinter = self.printer_name
+            printer_name = self.get_printer_name()
+            if printer_name:
+                word.ActivePrinter = printer_name
 
             doc.PrintOut()
             doc.Close(False)
@@ -190,17 +312,6 @@ class PrintThread(QThread):
             return True
         except Exception as e:
             print(f"Word静默打印失败: {e}")
-            try:
-                # 备用方法：使用ShellExecute
-                hPrinter, printer_name = self.get_printer_handle()
-                if hPrinter:
-                    win32api.ShellExecute(
-                        0, "printto", file_path, f'"{printer_name}"', ".", 0
-                    )
-                    win32print.ClosePrinter(hPrinter)
-                    return True
-            except:
-                pass
             return False
 
     def print_excel_silent(self, file_path):
@@ -215,8 +326,9 @@ class PrintThread(QThread):
             workbook = excel.Workbooks.Open(file_path)
 
             # 获取打印机名称
-            if self.printer_name:
-                excel.ActivePrinter = self.printer_name
+            printer_name = self.get_printer_name()
+            if printer_name:
+                excel.ActivePrinter = printer_name
 
             workbook.PrintOut()
             workbook.Close(False)
@@ -225,17 +337,6 @@ class PrintThread(QThread):
             return True
         except Exception as e:
             print(f"Excel静默打印失败: {e}")
-            try:
-                # 备用方法：使用ShellExecute
-                hPrinter, printer_name = self.get_printer_handle()
-                if hPrinter:
-                    win32api.ShellExecute(
-                        0, "printto", file_path, f'"{printer_name}"', ".", 0
-                    )
-                    win32print.ClosePrinter(hPrinter)
-                    return True
-            except:
-                pass
             return False
 
     def print_powerpoint_silent(self, file_path):
@@ -249,8 +350,9 @@ class PrintThread(QThread):
             presentation = ppt.Presentations.Open(file_path, WithWindow=False)
 
             # 获取打印机名称
-            if self.printer_name:
-                ppt.ActivePrinter = self.printer_name
+            printer_name = self.get_printer_name()
+            if printer_name:
+                ppt.ActivePrinter = printer_name
 
             presentation.PrintOut()
             presentation.Close()
@@ -259,81 +361,7 @@ class PrintThread(QThread):
             return True
         except Exception as e:
             print(f"PowerPoint静默打印失败: {e}")
-            try:
-                # 备用方法：使用ShellExecute
-                hPrinter, printer_name = self.get_printer_handle()
-                if hPrinter:
-                    win32api.ShellExecute(
-                        0, "printto", file_path, f'"{printer_name}"', ".", 0
-                    )
-                    win32print.ClosePrinter(hPrinter)
-                    return True
-            except:
-                pass
             return False
-
-    def print_image_silent(self, file_path):
-        """图片文件静默打印"""
-        try:
-            hPrinter, printer_name = self.get_printer_handle()
-            if not hPrinter:
-                return False
-
-            try:
-                # 使用ShellExecute打印图片
-                win32api.ShellExecute(
-                    0, "printto", file_path, f'"{printer_name}"', ".", 0
-                )
-                win32print.ClosePrinter(hPrinter)
-                return True
-            except Exception as e:
-                print(f"图片静默打印失败: {e}")
-                win32print.ClosePrinter(hPrinter)
-                return False
-        except Exception as e:
-            print(f"图片打印失败: {e}")
-            return False
-
-    def print_text_silent(self, file_path):
-        """文本文件静默打印"""
-        try:
-            hPrinter, printer_name = self.get_printer_handle()
-            if not hPrinter:
-                return False
-
-            try:
-                # 读取文本文件内容
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
-
-                # 使用默认文本打印方式
-                win32api.ShellExecute(
-                    0, "printto", file_path, f'"{printer_name}"', ".", 0
-                )
-                win32print.ClosePrinter(hPrinter)
-                return True
-            except Exception as e:
-                print(f"文本静默打印失败: {e}")
-                win32print.ClosePrinter(hPrinter)
-                return False
-        except Exception as e:
-            print(f"文本打印失败: {e}")
-            return False
-
-    def print_default(self, file_path):
-        """默认打印方法"""
-        hPrinter, printer_name = self.get_printer_handle()
-        if hPrinter:
-            try:
-                win32api.ShellExecute(
-                    0, "printto", file_path, f'"{printer_name}"', ".", 0
-                )
-                win32print.ClosePrinter(hPrinter)
-            except:
-                win32print.ClosePrinter(hPrinter)
-                raise
-        else:
-            raise Exception("无法获取打印机")
 
 
 class PrintDialog(QDialog):

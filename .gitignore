@@ -13,3 +13,7 @@ venv
 env*
 *.spec
 *.json
+
+# poppler
+poppler-*
+poppler.zip
