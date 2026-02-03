@@ -244,6 +244,9 @@ class PrintThread(QThread):
 
     def print_image_to_printer(self, img, printer_name, original_filename=None):
         """将PIL Image打印到指定打印机"""
+        hPrinter = None
+        temp_file = None
+
         try:
             # 确保图片是RGB模式
             if img.mode != "RGB":
@@ -268,14 +271,26 @@ class PrintThread(QThread):
                 new_height = int(img.height * ratio)
                 img = img.resize((new_width, new_height), Image.LANCZOS)
 
-            # 保存图片副本到temp目录（用于查看效果）
+            # 检查打印机状态
+            try:
+                hPrinter = win32print.OpenPrinter(printer_name)
+                printer_info = win32print.GetPrinter(hPrinter, 2)
+                status = printer_info.get("Status", 0)
+
+                # 检查打印机是否在线
+                if status != 0:
+                    print(f"打印机状态异常: {status}")
+                    # 不返回False，继续尝试打印
+            except Exception as e:
+                print(f"检查打印机状态失败: {e}")
+                # 继续尝试打印
+
+            # 方法1: 使用临时文件打印（更可靠）
             try:
                 # 获取项目根目录
                 if getattr(sys, "frozen", False):
-                    # 打包后的可执行文件
                     project_root = os.path.dirname(sys.executable)
                 else:
-                    # 开发环境：从当前文件向上三级目录到项目根目录
                     project_root = os.path.dirname(
                         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                     )
@@ -284,7 +299,7 @@ class PrintThread(QThread):
                 temp_dir = os.path.join(project_root, "temp")
                 os.makedirs(temp_dir, exist_ok=True)
 
-                # 生成保存文件名
+                # 生成临时文件名
                 if original_filename:
                     save_filename = f"{original_filename}.jpg"
                 else:
@@ -292,58 +307,85 @@ class PrintThread(QThread):
 
                     save_filename = f"print_{int(time.time())}.jpg"
 
-                # 保存图片到temp目录
-                save_path = os.path.join(temp_dir, save_filename)
-                img.save(save_path, format="JPEG", quality=90, optimize=True)
-                print(f"图片已保存到: {save_path}")
+                # 保存图片到临时文件
+                temp_file = os.path.join(temp_dir, save_filename)
+                img.save(temp_file, format="JPEG", quality=95, optimize=True)
+                print(f"图片已保存到临时文件: {temp_file}")
+
+                # 使用ShellExecute打印临时文件（更可靠）
+                result = win32api.ShellExecute(
+                    0,
+                    "printto",
+                    temp_file,
+                    f'"{printer_name}"',
+                    ".",
+                    0,  # SW_HIDE
+                )
+
+                print(f"ShellExecute打印结果: {result}")
+
+                # ShellExecute返回值 > 32 表示成功
+                if result > 32:
+                    return True
+                else:
+                    print(f"ShellExecute返回错误代码: {result}")
 
             except Exception as e:
-                print(f"保存图片到temp目录失败: {e}")
+                print(f"使用ShellExecute打印失败: {e}")
 
-            # 使用内存流，避免创建临时文件
-            img_byte_arr = io.BytesIO()
-
-            # 使用JPEG格式，质量90，大幅减少文件大小
-            img.save(img_byte_arr, format="JPEG", quality=90, optimize=True)
-
-            # 获取图片数据
-            img_data = img_byte_arr.getvalue()
-
-            try:
-                # 使用win32print打印图片
-                # 打开打印机
-                hPrinter = win32print.OpenPrinter(printer_name)
-
-                # 准备打印作业信息
-                pDocInfo = (doc_name, None, "RAW")
-
-                # 启动打印作业
-                win32print.StartDocPrinter(hPrinter, 1, pDocInfo)
-
-                # 写入打印数据
-                win32print.StartPagePrinter(hPrinter)
-                win32print.WritePrinter(hPrinter, img_data)
-                win32print.EndPagePrinter(hPrinter)
-                win32print.EndDocPrinter(hPrinter)
-                win32print.ClosePrinter(hPrinter)
-
-                return True
-
-            except Exception as e:
-                print(f"图片打印失败: {e}")
+                # 方法2: 如果ShellExecute失败，尝试使用win32print直接打印
                 try:
-                    win32print.ClosePrinter(hPrinter)
-                except:
-                    pass
-                return False
+                    # 重新打开打印机（如果已关闭）
+                    if not hPrinter:
+                        hPrinter = win32print.OpenPrinter(printer_name)
 
-            finally:
-                # 清理内存流
-                img_byte_arr.close()
+                    # 使用内存流
+                    img_byte_arr = io.BytesIO()
+                    img.save(img_byte_arr, format="JPEG", quality=95, optimize=True)
+                    img_data = img_byte_arr.getvalue()
+
+                    # 准备打印作业信息
+                    pDocInfo = (doc_name, None, "RAW")
+
+                    # 启动打印作业
+                    win32print.StartDocPrinter(hPrinter, 1, pDocInfo)
+
+                    # 写入打印数据
+                    win32print.StartPagePrinter(hPrinter)
+                    win32print.WritePrinter(hPrinter, img_data)
+                    win32print.EndPagePrinter(hPrinter)
+                    win32print.EndDocPrinter(hPrinter)
+
+                    print("使用win32print直接打印成功")
+                    return True
+
+                except Exception as e2:
+                    print(f"使用win32print直接打印也失败: {e2}")
+                    return False
+
+            return True
 
         except Exception as e:
             print(f"图片打印失败: {e}")
+            import traceback
+
+            traceback.print_exc()
             return False
+
+        finally:
+            # 清理资源
+            try:
+                if hPrinter:
+                    win32print.ClosePrinter(hPrinter)
+            except:
+                pass
+
+            # 可选：删除临时文件（保留用于调试）
+            # if temp_file and os.path.exists(temp_file):
+            #     try:
+            #         os.remove(temp_file)
+            #     except:
+            #         pass
 
     def print_with_shellexecute(self, file_path):
         """使用Windows ShellExecute打印"""
